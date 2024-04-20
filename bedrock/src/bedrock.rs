@@ -1,19 +1,14 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use serde_json::json;
+use serde_json::Value;
 //use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 //use std::fmt::Write;
 //use std::hash::{Hash, Hasher};
+use kinode_process_lib::{print_to_terminal, sqlite::Sqlite, Address, Request};
 use std::str::FromStr;
 use std::time::Duration;
 use std::time::SystemTime;
-use kinode_process_lib::{
-    print_to_terminal,
-    Address,
-    Request,
-    sqlite::Sqlite,
-};
 
 const DEFAULT_TABLES: [&str; 8] = [
     "all_peers",
@@ -29,31 +24,31 @@ const DEFAULT_TABLES: [&str; 8] = [
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum BedrockRequest {
-  AddPath {target: String, data: SubRequest },
-  AddRow {target: String, data: SubRequest },
-  AddPeer {target: String, data: SubRequest },
+    AddPath { target: String, data: SubRequest },
+    AddRow { target: String, data: SubRequest },
+    AddPeer { target: String, data: SubRequest },
 
-  UpdPath {target: String, data: SubRequest },
-  UpdPeer {target: String, data: SubRequest },
-  UpdRow {target: String, data: SubRequest },
+    UpdPath { target: String, data: SubRequest },
+    UpdPeer { target: String, data: SubRequest },
+    UpdRow { target: String, data: SubRequest },
 
-  DelPath {target: String, data: SubRequest },
-  DelPeer {target: String, data: SubRequest },
-  DelRow {target: String, data: SubRequest },
+    DelPath { target: String, data: SubRequest },
+    DelPeer { target: String, data: SubRequest },
+    DelRow { target: String, data: SubRequest },
 
-  // wants are for when a non-host peer *wants* the host to take some action on their behalf,
-  // thus there's no need for a WantAddPath, because you can't want someone else to add a path
-  // for you, you'd just do it yourself.
-  WantAddRow {target: String, data: SubRequest },
-  WantAddPeer {target: String, data: SubRequest },
+    // wants are for when a non-host peer *wants* the host to take some action on their behalf,
+    // thus there's no need for a WantAddPath, because you can't want someone else to add a path
+    // for you, you'd just do it yourself.
+    WantAddRow { target: String, data: SubRequest },
+    WantAddPeer { target: String, data: SubRequest },
 
-  WantUpdPath {target: String, data: SubRequest },
-  WantUpdPeer {target: String, data: SubRequest },
-  WantUpdRow {target: String, data: SubRequest },
+    WantUpdPath { target: String, data: SubRequest },
+    WantUpdPeer { target: String, data: SubRequest },
+    WantUpdRow { target: String, data: SubRequest },
 
-  WantDelPath {target: String, data: SubRequest },
-  WantDelPeer {target: String, data: SubRequest },
-  WantDelRow {target: String, data: SubRequest },
+    WantDelPath { target: String, data: SubRequest },
+    WantDelPeer { target: String, data: SubRequest },
+    WantDelRow { target: String, data: SubRequest },
 }
 
 pub struct BedrockClient {
@@ -81,12 +76,14 @@ impl BedrockClient {
                 id_bytes    BLOB NOT NULL,
                 key     BLOB NOT NULL,
                 multiaddr  TEXT
-            );".to_string(),
+            );"
+            .to_string(),
             "CREATE TABLE IF NOT EXISTS all_peers (
                 name    TEXT PRIMARY KEY,
                 id      TEXT NOT NULL,
                 addr    TEXT
-            );".to_string(),
+            );"
+            .to_string(),
             "CREATE TABLE IF NOT EXISTS peers (
                 path    TEXT NOT NULL,
                 id      TEXT NOT NULL,
@@ -96,7 +93,8 @@ impl BedrockClient {
                 updated_at   INTEGER NOT NULL,
                 received_at  INTEGER NOT NULL,
                 PRIMARY KEY (path, id)
-            );".to_string(),
+            );"
+            .to_string(),
             "CREATE TABLE IF NOT EXISTS paths (
                 path    TEXT PRIMARY KEY,
                 host    TEXT NOT NULL,
@@ -106,7 +104,8 @@ impl BedrockClient {
                 created_at   INTEGER NOT NULL,
                 updated_at   INTEGER NOT NULL,
                 received_at  INTEGER NOT NULL
-            );".to_string(),
+            );"
+            .to_string(),
             "CREATE TABLE IF NOT EXISTS access_rules (
                 path    TEXT NOT NULL,
                 type    TEXT NOT NULL,
@@ -115,28 +114,32 @@ impl BedrockClient {
                 edit    TEXT DEFAULT 'own',
                 delet   TEXT DEFAULT 'own',
                 PRIMARY KEY (path, type, role)
-            );".to_string(),
+            );"
+            .to_string(),
             "CREATE TABLE IF NOT EXISTS constraints (
                 path    TEXT NOT NULL,
                 type    TEXT NOT NULL,
                 uniques TEXT,
                 checks  TEXT,
                 PRIMARY KEY (path, type)
-            );".to_string(),
+            );"
+            .to_string(),
             "CREATE TABLE IF NOT EXISTS schemas (
                 type    TEXT PRIMARY KEY,
                 schema  TEXT NOT NULL
-            );".to_string(),
+            );"
+            .to_string(),
             "CREATE TABLE IF NOT EXISTS pending_messages (
                 id      SERIAL PRIMARY KEY,
                 type    TEXT NOT NULL,
                 target  TEXT NOT NULL,
                 msg     TEXT NOT NULL
-            );".to_string(),
+            );"
+            .to_string(),
         ];
         for c in creates {
             let r = client.write(c, vec![], None);
-            print_to_terminal(0, &format!("{:?}",r));
+            print_to_terminal(0, &format!("{:?}", r));
         }
 
         // 2. create /{id} and /{id}/private paths if they aren't already there
@@ -213,14 +216,29 @@ impl BedrockClient {
         create_path(&self.client, &self.our, path)
     }
 
-    pub fn update_path(&self, path: Path) -> Result<(),()> {
+    pub fn update_path(&self, path: Path) -> Result<(), ()> {
         let str_path = path.path.clone();
-        if !we_are_in_path(&str_path, &self.client) { return Err(()); }
+        if !we_are_in_path(&str_path, &self.client) {
+            return Err(());
+        }
 
         let peers = self.get_peers(&path.path).unwrap();
-        let upd_vec = vec![path.metadata.clone(), Value::String(path.host.clone()), Value::String(path.replication.to_string()), Value::String(path.security.to_string()), serde_json::to_value(path.updated_at).unwrap(), serde_json::to_value(path.received_at).unwrap(), Value::String(str_path)];
+        let upd_vec = vec![
+            path.metadata.clone(),
+            Value::String(path.host.clone()),
+            Value::String(path.replication.to_string()),
+            Value::String(path.security.to_string()),
+            serde_json::to_value(path.updated_at).unwrap(),
+            serde_json::to_value(path.received_at).unwrap(),
+            Value::String(str_path),
+        ];
         let host = self.host_for(&path.path).unwrap();
-        let req = SubRequest {path: Some(path), peers: None, rows: None, ids: None};
+        let req = SubRequest {
+            path: Some(path),
+            peers: None,
+            rows: None,
+            ids: None,
+        };
 
         //if we are the path host, save the row and tell all the peers
         if host == self.our.to_string() {
@@ -233,19 +251,18 @@ impl BedrockClient {
             );
             // tell the peers about the updated peer
             for p in peers {
-                if p.id == self.our.to_string() { continue; } // don't need to tell ourself
+                if p.id == self.our.to_string() {
+                    continue;
+                } // don't need to tell ourself
 
                 // send the Request to the peer with updated path info
                 if let Ok(addr) = p.id.parse::<Address>() {
                     let req = BedrockRequest::UpdPath {
                         target: p.id,
-                        data: req.clone()
+                        data: req.clone(),
                     };
                     let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                    let _ = Request::new()
-                        .target(addr)
-                        .body(bytes)
-                        .send();
+                    let _ = Request::new().target(addr).body(bytes).send();
                 } else {
                     print_to_terminal(0, &format!("failed to parse {} into Address type", p.id));
                 }
@@ -255,13 +272,10 @@ impl BedrockClient {
             if let Ok(addr) = host.parse::<Address>() {
                 let req = BedrockRequest::WantUpdPath {
                     target: host,
-                    data: req
+                    data: req,
                 };
                 let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                let _ = Request::new()
-                    .target(addr)
-                    .body(bytes)
-                    .send();
+                let _ = Request::new().target(addr).body(bytes).send();
             } else {
                 print_to_terminal(0, &format!("failed to parse {} into Address type", host));
             }
@@ -270,8 +284,8 @@ impl BedrockClient {
         Ok(())
     }
 
-    pub fn delete_path(&self, path: &str) -> Result<(),()> {
-        // when we want to delete a path, it's the same logic as if we 
+    pub fn delete_path(&self, path: &str) -> Result<(), ()> {
+        // when we want to delete a path, it's the same logic as if we
         // are removing ourselves from the path
         self.delete_peer(self.our.to_string().as_str(), path)
     }
@@ -284,7 +298,12 @@ impl BedrockClient {
             return;
         }
 
-        let peerreq = SubRequest {path: None, peers: Some(vec![peer.clone()]), rows: None, ids: None};
+        let peerreq = SubRequest {
+            path: None,
+            peers: Some(vec![peer.clone()]),
+            rows: None,
+            ids: None,
+        };
         let host = self.host_for(path).unwrap();
         //if we are the path host, save the row and tell all the peers
         if host == self.our.to_string() {
@@ -299,36 +318,39 @@ impl BedrockClient {
             let pathobj = self.get_path(path).unwrap();
             let raw_peers = self.get_peers(path).unwrap();
             let peers = Some(raw_peers.clone());
-            let subreq = SubRequest {path: Some(pathobj), peers, rows: None, ids: None};
+            let subreq = SubRequest {
+                path: Some(pathobj),
+                peers,
+                rows: None,
+                ids: None,
+            };
             // tell the new peer about the path
             if let Ok(addr) = peer.id.parse::<Address>() {
                 let req = BedrockRequest::AddPath {
                     target: peer.id.clone(),
-                    data: subreq
+                    data: subreq,
                 };
                 let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                let _ = Request::new()
-                    .target(addr)
-                    .body(bytes)
-                    .send();
+                let _ = Request::new().target(addr).body(bytes).send();
             } else {
                 print_to_terminal(0, &format!("failed to parse {} into Address type", peer.id));
             }
             // tell all the peers about the new peer
             for p in raw_peers {
-                if p.id == peer.id { continue; } // don't need to tell the peer about adding himself... duh
-                if p.id == self.our.to_string() { continue; } // don't need to tell ourself either
+                if p.id == peer.id {
+                    continue;
+                } // don't need to tell the peer about adding himself... duh
+                if p.id == self.our.to_string() {
+                    continue;
+                } // don't need to tell ourself either
 
                 if let Ok(addr) = p.id.parse::<Address>() {
                     let req = BedrockRequest::AddPeer {
                         target: p.id.clone(),
-                        data: peerreq.clone()
+                        data: peerreq.clone(),
                     };
                     let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                    let _ = Request::new()
-                        .target(addr)
-                        .body(bytes)
-                        .send();
+                    let _ = Request::new().target(addr).body(bytes).send();
                 } else {
                     print_to_terminal(0, &format!("failed to parse {} into Address type", p.id));
                 }
@@ -338,15 +360,12 @@ impl BedrockClient {
             if let Ok(addr) = host.parse::<Address>() {
                 let req = BedrockRequest::WantAddPeer {
                     target: host.clone(),
-                    data: peerreq.clone()
+                    data: peerreq.clone(),
                 };
                 let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                let _ = Request::new()
-                    .target(addr)
-                    .body(bytes)
-                    .send();
+                let _ = Request::new().target(addr).body(bytes).send();
             } else {
-                print_to_terminal(0, &format!("failed to parse {} into Address type", p.id));
+                print_to_terminal(0, &format!("failed to parse {} into Address type", host));
             }
         }
     }
@@ -359,7 +378,12 @@ impl BedrockClient {
             return;
         }
 
-        let peerreq = SubRequest {path: None, peers: Some(vec![peer.clone()]), rows: None, ids: None};
+        let peerreq = SubRequest {
+            path: None,
+            peers: Some(vec![peer.clone()]),
+            rows: None,
+            ids: None,
+        };
         let host = self.host_for(&peer.path).unwrap();
         //if we are the path host, save the row and tell all the peers
         if host == self.our.to_string() {
@@ -374,18 +398,17 @@ impl BedrockClient {
             let peers = self.get_peers(&peer.path).unwrap();
             // tell the peers about the updated peer
             for p in peers {
-                if p.id == self.our.to_string() { continue; } // don't need to tell ourself
+                if p.id == self.our.to_string() {
+                    continue;
+                } // don't need to tell ourself
 
                 if let Ok(addr) = p.id.parse::<Address>() {
                     let req = BedrockRequest::UpdPeer {
                         target: p.id.clone(),
-                        data: peerreq.clone()
+                        data: peerreq.clone(),
                     };
                     let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                    let _ = Request::new()
-                        .target(addr)
-                        .body(bytes)
-                        .send();
+                    let _ = Request::new().target(addr).body(bytes).send();
                 } else {
                     print_to_terminal(0, &format!("failed to parse {} into Address type", p.id));
                 }
@@ -395,22 +418,21 @@ impl BedrockClient {
             if let Ok(addr) = host.parse::<Address>() {
                 let req = BedrockRequest::WantUpdPeer {
                     target: host.clone(),
-                    data: peerreq.clone()
+                    data: peerreq.clone(),
                 };
                 let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                let _ = Request::new()
-                    .target(addr)
-                    .body(bytes)
-                    .send();
+                let _ = Request::new().target(addr).body(bytes).send();
             } else {
                 print_to_terminal(0, &format!("failed to parse {} into Address type", host));
             }
         }
     }
 
-    pub fn delete_peer(&self, id: &str, path: &str) -> Result<(),()> {
+    pub fn delete_peer(&self, id: &str, path: &str) -> Result<(), ()> {
         // TODO: permission checking
-        if !we_are_in_path(path, &self.client) { return Err(()); }
+        if !we_are_in_path(path, &self.client) {
+            return Err(());
+        }
 
         // find the peer we want to delete
         //let pathrow = self.get_path(path);
@@ -423,7 +445,12 @@ impl BedrockClient {
             }
         }
         let peer = peer.unwrap();
-        let subreq = SubRequest {path: None, peers: Some(vec![peer]), rows: None, ids: None};
+        let subreq = SubRequest {
+            path: None,
+            peers: Some(vec![peer]),
+            rows: None,
+            ids: None,
+        };
 
         let host = self.host_for(&path).unwrap();
         //if we are the path host, delete the peer and tell all the peers
@@ -432,9 +459,22 @@ impl BedrockClient {
             if self.our.to_string() == id.to_string() {
                 self.leave_path_sql(path);
                 for p in peers {
-                    if p.id == self.our.to_string() { continue; } // don't need to tell ourself
-                    print_to_terminal(0, &format!("sending del-peer of themselves (equivalent to del-path) to peer {}", p.id));
-                    let subreq = SubRequest {path: None, peers: Some(vec![p.clone()]), rows: None, ids: None};
+                    if p.id == self.our.to_string() {
+                        continue;
+                    } // don't need to tell ourself
+                    print_to_terminal(
+                        0,
+                        &format!(
+                            "sending del-peer of themselves (equivalent to del-path) to peer {}",
+                            p.id
+                        ),
+                    );
+                    let subreq = SubRequest {
+                        path: None,
+                        peers: Some(vec![p.clone()]),
+                        rows: None,
+                        ids: None,
+                    };
                     let _ = self.client.write(
                         String::from("INSERT INTO pending_messages (type, target, msg) VALUES ('del-peer', $1, $2)"),
                         vec![Value::String(p.id), serde_json::to_value(&subreq).unwrap()],
@@ -445,26 +485,31 @@ impl BedrockClient {
                 // delete it locally
                 let _ = self.client.write(
                     String::from("DELETE FROM peers WHERE id = $1 AND path = $2"),
-                    vec![Value::String(id.to_string()), Value::String(path.to_string())],
-                    None
+                    vec![
+                        Value::String(id.to_string()),
+                        Value::String(path.to_string()),
+                    ],
+                    None,
                 );
                 // tell all the peers that we deleted the peer
                 for p in peers {
-                    if p.id == self.our.to_string() { continue; } // don't need to tell ourself
+                    if p.id == self.our.to_string() {
+                        continue;
+                    } // don't need to tell ourself
                     print_to_terminal(0, &format!("sending del-peer to peer {}", p.id));
 
                     if let Ok(addr) = p.id.parse::<Address>() {
                         let req = BedrockRequest::DelPeer {
                             target: p.id.clone(),
-                            data: subreq.clone()
+                            data: subreq.clone(),
                         };
                         let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                        let _ = Request::new()
-                            .target(addr)
-                            .body(bytes)
-                            .send();
+                        let _ = Request::new().target(addr).body(bytes).send();
                     } else {
-                        print_to_terminal(0, &format!("failed to parse {} into Address type", p.id));
+                        print_to_terminal(
+                            0,
+                            &format!("failed to parse {} into Address type", p.id),
+                        );
                     }
                 }
             }
@@ -473,13 +518,10 @@ impl BedrockClient {
             if let Ok(addr) = host.parse::<Address>() {
                 let req = BedrockRequest::WantDelPeer {
                     target: host.clone(),
-                    data: subreq.clone()
+                    data: subreq.clone(),
                 };
                 let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                let _ = Request::new()
-                    .target(addr)
-                    .body(bytes)
-                    .send();
+                let _ = Request::new().target(addr).body(bytes).send();
             } else {
                 print_to_terminal(0, &format!("failed to parse {} into Address type", host));
             }
@@ -490,7 +532,12 @@ impl BedrockClient {
 
     pub fn add_row(&self, row: Row) {
         let pathhost: String = self.host_for(&row.path).unwrap();
-        let subreq = SubRequest {path: None, peers: None, rows: Some(vec![row.clone()]), ids: None};
+        let subreq = SubRequest {
+            path: None,
+            peers: None,
+            rows: Some(vec![row.clone()]),
+            ids: None,
+        };
         //if we are the path host, save the row and tell all the peers
         if pathhost == self.our.to_string() {
             for peer in peers_for(&row.path, &self.client) {
@@ -501,13 +548,10 @@ impl BedrockClient {
                 if let Ok(addr) = peer.parse::<Address>() {
                     let req = BedrockRequest::AddRow {
                         target: peer.clone(),
-                        data: subreq.clone()
+                        data: subreq.clone(),
                     };
                     let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                    let _ = Request::new()
-                        .target(addr)
-                        .body(bytes)
-                        .send();
+                    let _ = Request::new().target(addr).body(bytes).send();
                 } else {
                     print_to_terminal(0, &format!("failed to parse {} into Address type", peer));
                 }
@@ -518,22 +562,27 @@ impl BedrockClient {
             if let Ok(addr) = pathhost.parse::<Address>() {
                 let req = BedrockRequest::WantAddRow {
                     target: pathhost.clone(),
-                    data: subreq.clone()
+                    data: subreq.clone(),
                 };
                 let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                let _ = Request::new()
-                    .target(addr)
-                    .body(bytes)
-                    .send();
+                let _ = Request::new().target(addr).body(bytes).send();
             } else {
-                print_to_terminal(0, &format!("failed to parse {} into Address type", pathhost));
+                print_to_terminal(
+                    0,
+                    &format!("failed to parse {} into Address type", pathhost),
+                );
             }
         }
     }
 
     pub fn update_row(&self, row: Row) {
         let pathhost: String = self.host_for(&row.path).unwrap();
-        let subreq = SubRequest {path: None, peers: None, rows: Some(vec![row.clone()]), ids: None};
+        let subreq = SubRequest {
+            path: None,
+            peers: None,
+            rows: Some(vec![row.clone()]),
+            ids: None,
+        };
         //if we are the path host, save the row and tell all the peers
         if pathhost == self.our.to_string() {
             for peer in peers_for(&row.path, &self.client) {
@@ -544,13 +593,10 @@ impl BedrockClient {
                 if let Ok(addr) = peer.parse::<Address>() {
                     let req = BedrockRequest::UpdRow {
                         target: peer.clone(),
-                        data: subreq.clone()
+                        data: subreq.clone(),
                     };
                     let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                    let _ = Request::new()
-                        .target(addr)
-                        .body(bytes)
-                        .send();
+                    let _ = Request::new().target(addr).body(bytes).send();
                 } else {
                     print_to_terminal(0, &format!("failed to parse {} into Address type", peer));
                 }
@@ -561,20 +607,17 @@ impl BedrockClient {
             if let Ok(addr) = pathhost.parse::<Address>() {
                 let req = BedrockRequest::WantUpdRow {
                     target: pathhost,
-                    data: subreq
+                    data: subreq,
                 };
                 let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                let _ = Request::new()
-                    .target(addr)
-                    .body(bytes)
-                    .send();
+                let _ = Request::new().target(addr).body(bytes).send();
             } else {
                 print_to_terminal(0, "failed to parse {pathhost} into Address type");
             }
         }
     }
 
-    pub fn delete_row(&self, tbl: String, id: String, path: String) -> Result<(),()> {
+    pub fn delete_row(&self, tbl: String, id: String, path: String) -> Result<(), ()> {
         // TODO: permission checking
         // ensure that the `tbl` is present
         if let Err(_) = table_name_helper(&self.client, tbl.clone()) {
@@ -584,9 +627,14 @@ impl BedrockClient {
         let trip = RowIdTriple {
             tbl_type: tbl.clone(),
             id: id.clone(),
-            path: path.clone()
+            path: path.clone(),
         };
-        let subreq = SubRequest {path: None, peers: None, rows: None, ids: Some(vec![trip])};
+        let subreq = SubRequest {
+            path: None,
+            peers: None,
+            rows: None,
+            ids: Some(vec![trip]),
+        };
 
         let host = self.host_for(&path).unwrap();
         //if we are the path host, delete the row and tell all the peers
@@ -596,25 +644,24 @@ impl BedrockClient {
             let _ = self.client.write(
                 format!("DELETE FROM {} WHERE id = $1", tbl),
                 vec![Value::String(id)],
-                None
+                None,
             );
 
             // tell all the peers that we deleted the row
             let peers = self.get_peers(&path).unwrap();
             for p in peers {
-                if p.id == self.our.to_string() { continue; } // don't need to tell ourself
+                if p.id == self.our.to_string() {
+                    continue;
+                } // don't need to tell ourself
                 print_to_terminal(0, &format!("sending del-row to peer {}", p.id));
 
                 if let Ok(addr) = p.id.parse::<Address>() {
                     let req = BedrockRequest::DelRow {
                         target: p.id,
-                        data: subreq
+                        data: subreq.clone(),
                     };
                     let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                    let _ = Request::new()
-                        .target(addr)
-                        .body(bytes)
-                        .send();
+                    let _ = Request::new().target(addr).body(bytes).send();
                 } else {
                     print_to_terminal(0, "failed to parse Address type");
                 }
@@ -624,13 +671,10 @@ impl BedrockClient {
             if let Ok(addr) = host.parse::<Address>() {
                 let req = BedrockRequest::WantDelRow {
                     target: host,
-                    data: subreq
+                    data: subreq,
                 };
                 let bytes = serde_json::to_string(&req).unwrap().into_bytes();
-                let _ = Request::new()
-                    .target(addr)
-                    .body(bytes)
-                    .send();
+                let _ = Request::new().target(addr).body(bytes).send();
             } else {
                 print_to_terminal(0, "failed to parse {host} Address type");
             }
@@ -639,29 +683,46 @@ impl BedrockClient {
         Ok(())
     }
 
-    pub fn foreign_new_row(&self, mut row: Row, peerid: String) -> Result<(),()> {
+    pub fn foreign_new_row(&self, mut row: Row, peerid: String) -> Result<(), ()> {
         // TODO: proper access control checking. does this peer have the right to tell me about
         // this new row, and does this new row have the right to be created on this path?
         //let path = self.get_path(&row.path);
 
         // we are not in the path, something is wrong
-        if !we_are_in_path(&row.path, &self.client) { return Err(()); }
+        if !we_are_in_path(&row.path, &self.client) {
+            return Err(());
+        }
 
         let peers = peers_for(&row.path, &self.client);
-        if !peers.contains(&peerid) { return Err(()); } // only peers can add rows
+        if !peers.contains(&peerid) {
+            return Err(());
+        } // only peers can add rows
 
         row.received_at = SystemTime::now();
         self.save_row(row, false);
         Ok(())
     }
 
-    pub fn foreign_new_path(&self, mut path: Path, peerid: String, peers: Vec<Peer>) -> Result<(),()> {
-        if peerid != path.host { return Err(()); } // only host can add us
+    pub fn foreign_new_path(
+        &self,
+        mut path: Path,
+        peerid: String,
+        peers: Vec<Peer>,
+    ) -> Result<(), ()> {
+        if peerid != path.host {
+            return Err(());
+        } // only host can add us
 
-        let raw = self.client
-            .read(String::from("SELECT host FROM paths WHERE path = $1"), vec![Value::String(path.path.clone())])
+        let raw = self
+            .client
+            .read(
+                String::from("SELECT host FROM paths WHERE path = $1"),
+                vec![Value::String(path.path.clone())],
+            )
             .unwrap();
-        if raw.len() > 0 { return Err(()); } // we are already in the path
+        if raw.len() > 0 {
+            return Err(());
+        } // we are already in the path
 
         path.received_at = sys_time_to_u64(SystemTime::now());
         let _ = self.client.write(
@@ -682,16 +743,26 @@ impl BedrockClient {
         Ok(())
     }
 
-    pub fn foreign_new_peer(&self, mut peer: Peer, foreign_peerid: String) -> Result<(),()> {
+    pub fn foreign_new_peer(&self, mut peer: Peer, foreign_peerid: String) -> Result<(), ()> {
         let path = self.get_path(&peer.path);
-        if let Err(_) = path { return Err(()); }
+        if let Err(_) = path {
+            return Err(());
+        }
         let path = path.unwrap();
-        if foreign_peerid != path.host { return Err(()); } // only host can add peers
+        if foreign_peerid != path.host {
+            return Err(());
+        } // only host can add peers
 
-        let raw = self.client
-            .read("SELECT host FROM paths WHERE path = $1".to_string(), vec![Value::String(path.path)])
+        let raw = self
+            .client
+            .read(
+                "SELECT host FROM paths WHERE path = $1".to_string(),
+                vec![Value::String(path.path)],
+            )
             .unwrap();
-        if raw.len() == 0 { return Err(()); } // we aren't in the path
+        if raw.len() == 0 {
+            return Err(());
+        } // we aren't in the path
 
         peer.received_at = SystemTime::now();
         let _ = self.client.write(
@@ -702,13 +773,19 @@ impl BedrockClient {
         Ok(())
     }
 
-    pub fn foreign_upd_peer(&self, mut peer: Peer, foreign_peerid: String) -> Result<(),()> {
-        if !we_are_in_path(&peer.path, &self.client) { return Err(()); }
+    pub fn foreign_upd_peer(&self, mut peer: Peer, foreign_peerid: String) -> Result<(), ()> {
+        if !we_are_in_path(&peer.path, &self.client) {
+            return Err(());
+        }
 
         let path = self.get_path(&peer.path);
-        if let Err(_) = path { return Err(()); }
+        if let Err(_) = path {
+            return Err(());
+        }
 
-        if foreign_peerid != path.unwrap().host { return Err(()); } // only host can tell us to edit peer
+        if foreign_peerid != path.unwrap().host {
+            return Err(());
+        } // only host can tell us to edit peer
 
         peer.received_at = SystemTime::now();
         let _ = self.client.write(
@@ -720,31 +797,46 @@ impl BedrockClient {
         Ok(())
     }
 
-    pub fn foreign_upd_row(&self, mut row: Row, peerid: String) -> Result<(),()> {
+    pub fn foreign_upd_row(&self, mut row: Row, peerid: String) -> Result<(), ()> {
         // TODO: proper access control checking. does this peer have the right to tell me about
         // this row edit, and is this row editable on this path?
         //let path = self.get_path(&row.path);
 
         // we are not in the path, something is wrong
-        if !we_are_in_path(&row.path, &self.client) { return Err(()); }
+        if !we_are_in_path(&row.path, &self.client) {
+            return Err(());
+        }
 
         let peers = peers_for(&row.path, &self.client);
-        if !peers.contains(&peerid) { return Err(()); } // only peers can update rows
+        if !peers.contains(&peerid) {
+            return Err(());
+        } // only peers can update rows
 
         row.received_at = SystemTime::now();
         self.save_row(row, true);
         Ok(())
     }
 
-    pub fn foreign_upd_path(&self, mut path: Path, peerid: String) -> Result<(),()> {
-        if !we_are_in_path(&path.path, &self.client) { return Err(()); }
+    pub fn foreign_upd_path(&self, mut path: Path, peerid: String) -> Result<(), ()> {
+        if !we_are_in_path(&path.path, &self.client) {
+            return Err(());
+        }
 
         let peers = peers_for(&path.path, &self.client);
-        if !peers.contains(&peerid) { return Err(()); } // only peers can edit the path
+        if !peers.contains(&peerid) {
+            return Err(());
+        } // only peers can edit the path
 
         let peer_objs = self.get_peers(&path.path).unwrap();
-        let req_role = peer_objs.iter().find(|&pr| pr.id == peerid).unwrap().role.clone();
-        if !["host", "admin"].contains(&req_role.as_str()) { return Err(()); } // only host and admins can update path
+        let req_role = peer_objs
+            .iter()
+            .find(|&pr| pr.id == peerid)
+            .unwrap()
+            .role
+            .clone();
+        if !["host", "admin"].contains(&req_role.as_str()) {
+            return Err(());
+        } // only host and admins can update path
 
         // update it
         path.received_at = sys_time_to_u64(SystemTime::now());
@@ -766,16 +858,22 @@ impl BedrockClient {
         Ok(())
     }
 
-    pub fn foreign_del_peer(&self, peer: Peer, foreign_peerid: String) -> Result<(),()> {
+    pub fn foreign_del_peer(&self, peer: Peer, foreign_peerid: String) -> Result<(), ()> {
         // TODO: proper access control checking. does this peer have the right to tell me about
         // this peer removal?
-        if !we_are_in_path(&peer.path, &self.client) { return Err(()); } // we are not in the path, something is wrong
+        if !we_are_in_path(&peer.path, &self.client) {
+            return Err(());
+        } // we are not in the path, something is wrong
 
         let path = self.get_path(&peer.path).unwrap();
-        if path.host != foreign_peerid { return Err(()); } // for now, only host can remove peers
+        if path.host != foreign_peerid {
+            return Err(());
+        } // for now, only host can remove peers
 
         let peers = peers_for(&peer.path, &self.client);
-        if !peers.contains(&peer.id) { return Err(()); } // only remove peers who are actually present
+        if !peers.contains(&peer.id) {
+            return Err(());
+        } // only remove peers who are actually present
 
         // if we are the one being deleted... gotta do a little more logic
         if peer.id == self.our.to_string() {
@@ -784,23 +882,31 @@ impl BedrockClient {
             let _ = self.client.write(
                 "DELETE FROM peers WHERE id = $1 AND path = $2".to_string(),
                 vec![Value::String(peer.id), Value::String(peer.path)],
-                None
+                None,
             );
         }
         Ok(())
     }
 
-    pub fn foreign_del_row(&self, id: RowIdTriple, foreign_peerid: String) -> Result<(),()> {
+    pub fn foreign_del_row(&self, id: RowIdTriple, foreign_peerid: String) -> Result<(), ()> {
         // TODO: proper access control checking. does this peer have the right to tell me about
         // this deletion, and does this row have the right to be deleted?
         //let path = self.get_path(&row.path);
-        let raw = self.client
-            .read(String::from("SELECT host FROM paths WHERE path = $1"), vec![Value::String(id.path.clone())])
+        let raw = self
+            .client
+            .read(
+                String::from("SELECT host FROM paths WHERE path = $1"),
+                vec![Value::String(id.path.clone())],
+            )
             .unwrap();
-        if raw.len() == 0 { return Err(()); } // we are not in the path, something is wrong
+        if raw.len() == 0 {
+            return Err(());
+        } // we are not in the path, something is wrong
 
         let peers = peers_for(&id.path, &self.client);
-        if !peers.contains(&foreign_peerid) { return Err(()); } // only peers can add rows
+        if !peers.contains(&foreign_peerid) {
+            return Err(());
+        } // only peers can add rows
 
         // ensure that the table is present
         if let Err(_) = table_name_helper(&self.client, id.tbl_type.clone()) {
@@ -810,7 +916,7 @@ impl BedrockClient {
         let _ = self.client.write(
             format!("DELETE FROM {} WHERE id = $1", id.tbl_type),
             vec![Value::String(id.id)],
-            None
+            None,
         );
         Ok(())
     }
@@ -858,7 +964,7 @@ impl BedrockClient {
             let result = raw[0].get("host");
             match result {
                 Some(r) => Ok(r.as_str().unwrap().to_string()),
-                None => Err(())
+                None => Err(()),
             }
         }
     }
@@ -942,7 +1048,7 @@ impl BedrockClient {
         } else {
             format!("INSERT INTO {} (path, id, sender, created_at, updated_at, received_at, {}) VALUES ($1, $2, $3, $4, $5, $6, {})", tbl_name, cols, vals)
         };
-        print_to_terminal(0, &format!("save row: {}, {:?}",stmt, row_values));
+        print_to_terminal(0, &format!("save row: {}, {:?}", stmt, row_values));
 
         let _ = self.client.write(stmt, row_values, None);
     }
@@ -952,9 +1058,10 @@ impl BedrockClient {
     }
 
     pub fn get_peers(&self, path: &str) -> Result<Vec<Peer>, ()> {
-        let raw = self
-            .client
-            .read("SELECT * FROM peers WHERE path = $1".to_string(), vec![Value::String(path.to_string())]);
+        let raw = self.client.read(
+            "SELECT * FROM peers WHERE path = $1".to_string(),
+            vec![Value::String(path.to_string())],
+        );
 
         match raw {
             Err(_) => Err(()),
@@ -1036,10 +1143,14 @@ impl BedrockClient {
     */
     fn leave_path_sql(&self, path: &str) {
         // delete all the rows of actual data that were on the path
-        let tbl_names = self.client.read(
-            "select table_name from information_schema.tables where table_schema = 'public';".to_string(),
-            vec![],
-        ).unwrap();
+        let tbl_names = self
+            .client
+            .read(
+                "select table_name from information_schema.tables where table_schema = 'public';"
+                    .to_string(),
+                vec![],
+            )
+            .unwrap();
         for name_row in tbl_names {
             let name = name_row.get("table_name").unwrap().as_str().unwrap();
             if DEFAULT_TABLES.contains(&name) {
@@ -1048,7 +1159,7 @@ impl BedrockClient {
             let _ = self.client.write(
                 format!("DELETE FROM {} WHERE path = $1", name),
                 vec![Value::String(path.to_string())],
-                None
+                None,
             );
         }
 
@@ -1056,18 +1167,16 @@ impl BedrockClient {
         let _ = self.client.write(
             "DELETE FROM paths WHERE path = $1".to_string(),
             vec![Value::String(path.to_string())],
-            None
+            None,
         );
 
         // delete all the peers on that path
         let _ = self.client.write(
             "DELETE FROM peers WHERE path = $1".to_string(),
             vec![Value::String(path.to_string())],
-            None
+            None,
         );
-
     }
-
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1167,8 +1276,8 @@ pub struct Peer {
 }
 impl Peer {
     fn to_value_vec(&self) -> Vec<Value> {
-       // always in the following order:
-       // path, id, role, metadata, created_at, updated_at, received_at
+        // always in the following order:
+        // path, id, role, metadata, created_at, updated_at, received_at
         vec![
             Value::String(self.path.clone()),
             Value::String(self.id.clone()),
@@ -1272,9 +1381,9 @@ pub struct Path {
 }
 impl Path {
     fn to_value_vec(&self) -> Vec<Value> {
-        print_to_terminal(0, &format!("{}",self.replication));
-       // alway in the following order:
-       // path, metadata, host, replication, security, created_at, updated_at, received_at
+        print_to_terminal(0, &format!("{}", self.replication));
+        // alway in the following order:
+        // path, metadata, host, replication, security, created_at, updated_at, received_at
         vec![
             Value::String(self.path.clone()),
             Value::String(serde_json::to_string(&self.metadata).unwrap()),
@@ -1575,8 +1684,10 @@ async fn connect(conn: &str) -> Result<tokio_postgres::Client, Error> {
 
 */
 pub fn create_path(client: &Sqlite, our: &Address, path: Path) -> bool {
-    let raw = client
-        .read("SELECT host FROM paths WHERE path = ?;".to_string(), vec![Value::String(path.path.to_string())]);
+    let raw = client.read(
+        "SELECT host FROM paths WHERE path = ?;".to_string(),
+        vec![Value::String(path.path.to_string())],
+    );
     let raw = raw.unwrap();
 
     if raw.len() == 0 {
@@ -1690,13 +1801,19 @@ pub struct ChatDbPeer {
 fn table_name_helper(client: &Sqlite, table: String) -> Result<(), ()> {
     let tbl_names = client
         .read(
-            "select table_name from information_schema.tables where table_schema = 'public';".to_string(),
+            "select table_name from information_schema.tables where table_schema = 'public';"
+                .to_string(),
             vec![],
         )
         .unwrap();
     let mut found_name = false;
     for name_row in tbl_names {
-        let name: String = name_row.get("table_name").unwrap().as_str().unwrap().to_string();
+        let name: String = name_row
+            .get("table_name")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
         if name == table {
             found_name = true;
         }
@@ -1714,7 +1831,10 @@ pub fn get_by_id(client: &Sqlite, table: String, id: String) -> Result<Row, ()> 
     }
 
     let raw = client
-        .read(format!("SELECT * FROM {} WHERE id = $1", table), vec![Value::String(id)])
+        .read(
+            format!("SELECT * FROM {} WHERE id = $1", table),
+            vec![Value::String(id)],
+        )
         .unwrap();
 
     Ok(parse_row(&raw[0], table))
@@ -1727,18 +1847,20 @@ pub fn get_by_id2(client: &Sqlite, table: String, id: String) -> Result<Row, ()>
     }
 
     let raw = client
-        .read(format!("SELECT * FROM {} WHERE id = $1", table), vec![Value::String(id)])
+        .read(
+            format!("SELECT * FROM {} WHERE id = $1", table),
+            vec![Value::String(id)],
+        )
         .unwrap();
 
     Ok(parse_row(&raw[0], table))
 }
 
 pub fn get_peer(client: &Sqlite, path: String, id: String) -> Result<Peer, ()> {
-    let raw = client
-        .read(
-            String::from("SELECT * FROM peers WHERE path = $1 AND id = $2"),
-            vec![Value::String(path), Value::String(id)]
-        );
+    let raw = client.read(
+        String::from("SELECT * FROM peers WHERE path = $1 AND id = $2"),
+        vec![Value::String(path), Value::String(id)],
+    );
     match raw {
         Err(_) => Err(()),
         Ok(raw) => {
@@ -1785,7 +1907,9 @@ pub fn get_table(client: &Sqlite, table: String, path: String) -> Result<Vec<Row
 pub fn get_fullpath(client: &Sqlite, path: String) -> Result<Vec<Row>, ()> {
     let tbl_names = client
         .read(
-            String::from("select table_name from information_schema.tables where table_schema = 'public';"),
+            String::from(
+                "select table_name from information_schema.tables where table_schema = 'public';",
+            ),
             vec![],
         )
         .unwrap();
@@ -1978,7 +2102,7 @@ pub fn peers_for(path: &str, client: &Sqlite) -> Vec<String> {
     let raw = client
         .read(
             String::from("SELECT id FROM peers WHERE path = $1"),
-            vec![Value::String(String::from(path))]
+            vec![Value::String(String::from(path))],
         )
         .unwrap();
     let mut result: Vec<String> = Vec::with_capacity(raw.len());
@@ -1990,7 +2114,10 @@ pub fn peers_for(path: &str, client: &Sqlite) -> Vec<String> {
 
 fn we_are_in_path(path: &str, client: &Sqlite) -> bool {
     let raw = client
-        .read("SELECT host FROM paths WHERE path = $1".to_string(), vec![Value::String(path.to_string())])
+        .read(
+            "SELECT host FROM paths WHERE path = $1".to_string(),
+            vec![Value::String(path.to_string())],
+        )
         .unwrap();
 
     if raw.len() == 0 {
@@ -2002,7 +2129,10 @@ fn we_are_in_path(path: &str, client: &Sqlite) -> bool {
 
 pub fn get_path(client: &Sqlite, path: &str) -> Result<Path, ()> {
     let raw = client
-        .read("SELECT * FROM paths WHERE path = $1".to_string(), vec![Value::String(path.to_string())])
+        .read(
+            "SELECT * FROM paths WHERE path = $1".to_string(),
+            vec![Value::String(path.to_string())],
+        )
         .unwrap();
 
     if raw.len() == 0 {
@@ -2012,10 +2142,14 @@ pub fn get_path(client: &Sqlite, path: &str) -> Result<Path, ()> {
             path: raw[0].get("path").unwrap().as_str().unwrap().to_string(),
             host: raw[0].get("host").unwrap().as_str().unwrap().to_string(),
             metadata: raw[0].get("metadata").unwrap().clone(),
-            replication: PathReplication::from_str(raw[0].get("replication").unwrap().as_str().unwrap()).unwrap(),
+            replication: PathReplication::from_str(
+                raw[0].get("replication").unwrap().as_str().unwrap(),
+            )
+            .unwrap(),
             // TODO: actually read from the access_rules table and generate this properly
             access_rules: HashMap::new(),
-            security: PathSecurity::from_str(raw[0].get("security").unwrap().as_str().unwrap()).unwrap(),
+            security: PathSecurity::from_str(raw[0].get("security").unwrap().as_str().unwrap())
+                .unwrap(),
             created_at: raw[0].get("created_at").unwrap().as_u64().unwrap(),
             updated_at: raw[0].get("updated_at").unwrap().as_u64().unwrap(),
             received_at: raw[0].get("received_at").unwrap().as_u64().unwrap(),
@@ -2024,12 +2158,17 @@ pub fn get_path(client: &Sqlite, path: &str) -> Result<Path, ()> {
 }
 
 fn value_to_sys(time: &Value) -> SystemTime {
-     let dur = Duration::from_millis(time.as_u64().unwrap());
-     SystemTime::UNIX_EPOCH.checked_add(dur).unwrap()
+    let dur = Duration::from_millis(time.as_u64().unwrap());
+    SystemTime::UNIX_EPOCH.checked_add(dur).unwrap()
 }
 
 fn sys_time_to_u64(time: SystemTime) -> u64 {
-    let num: u64 = time.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis().try_into().unwrap();
+    let num: u64 = time
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_millis()
+        .try_into()
+        .unwrap();
     num
 }
 
@@ -2037,4 +2176,3 @@ fn sys_time_to_value(time: SystemTime) -> Value {
     let num: u64 = sys_time_to_u64(time);
     serde_json::to_value(serde_json::value::Number::from(num)).unwrap()
 }
-
