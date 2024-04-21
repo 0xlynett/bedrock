@@ -1,6 +1,7 @@
 mod bedrock;
 use bedrock::BedrockClient;
 use bedrock::BedrockRequest;
+use bedrock::RowIdTriple;
 use kinode_process_lib::{
     await_message,
     get_typed_state,
@@ -255,7 +256,20 @@ fn handle_message(
                                 bedrock.add_peer(&path, peer);
                             }
                         }
-                    } else { // the host (presumably) is adding a peer to a path we are in
+                    } else {
+                        // the host (presumably) is adding a peer to a path we are in
+
+                        // double check if we are in the path
+                        if let Some(path) = data.path {
+                            if let Ok(existing_path) = bedrock.get_path(&path.path) {
+                                if let Some(peers) = data.peers {
+                                    // the path exists
+                                    for peer in peers {
+                                        bedrock.foreign_new_peer(peer, source.node.clone());
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 BedrockRequest::AddRow {
@@ -269,7 +283,15 @@ fn handle_message(
                                 bedrock.add_row(row);
                             }
                         }
-                    } else { // the host (presumably) is letting us know about a new row for a path we are in
+                    } else {
+                        // the host (presumably) is letting us know about a new row for a path we are in
+                        if let Some(path) = data.path {
+                            if let Some(rows) = data.rows {
+                                for row in rows {
+                                    bedrock.foreign_new_row(row, source.node.clone());
+                                }
+                            }
+                        }
                     }
                 }
                 BedrockRequest::UpdPath {
@@ -293,7 +315,7 @@ fn handle_message(
                     } else {
                         // the host (presumably) is letting us know about a path edit
                         if let Some(path) = data.path {
-                            let _result = bedrock.foreign_upd_path(path, source.to_string());
+                            bedrock.foreign_upd_path(path, source.to_string());
                         }
                     }
                 }
@@ -308,7 +330,13 @@ fn handle_message(
                                 bedrock.update_peer(peer);
                             }
                         }
-                    } else { // the host (presumably) is letting us know about a peer edit
+                    } else {
+                        // the host (presumably) is letting us know about a peer edit
+                        if let Some(peers) = data.peers {
+                            for peer in peers {
+                                bedrock.foreign_upd_peer(peer, source.node.clone());
+                            }
+                        }
                     }
                 }
                 BedrockRequest::UpdRow {
@@ -322,7 +350,13 @@ fn handle_message(
                                 bedrock.update_row(row);
                             }
                         }
-                    } else { // the host (presumably) is letting us know about a row edit
+                    } else {
+                        // the peer (presumably) is letting us know about a row edit
+                        if let Some(rows) = data.rows {
+                            for row in rows {
+                                bedrock.foreign_upd_row(row, source.node.clone());
+                            }
+                        }
                     }
                 }
                 BedrockRequest::DelPath {
@@ -343,7 +377,8 @@ fn handle_message(
                                 }
                             }
                         }
-                    } else { // the host
+                    } else {
+                        // no
                     }
                 }
                 BedrockRequest::DelPeer {
@@ -367,7 +402,13 @@ fn handle_message(
                                 }
                             }
                         }
-                    } else { // the host
+                    } else {
+                        // the host
+                        if let Some(peers) = data.peers {
+                            for peer in peers {
+                                bedrock.foreign_del_peer(peer, source.node.clone());
+                            }
+                        }
                     }
                 }
                 BedrockRequest::DelRow {
@@ -387,7 +428,20 @@ fn handle_message(
                                 }
                             }
                         }
-                    } else { // the host
+                    } else {
+                        // the host
+                        if let Some(rows) = data.rows {
+                            for row in rows {
+                                bedrock.foreign_del_row(
+                                    RowIdTriple {
+                                        tbl_type: row.tbl_name(),
+                                        id: row.id_string(),
+                                        path: row.path,
+                                    },
+                                    source.node.clone(),
+                                );
+                            }
+                        }
                     }
                 }
                 BedrockRequest::WantAddPeer {
