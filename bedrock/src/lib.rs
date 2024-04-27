@@ -209,7 +209,7 @@ fn handle_message(
                     0,
                     &format!("bedrock: unexpected Response: {:?}", system_message),
                 );
-                panic!("");
+                //panic!("");
             }
         }
 
@@ -259,14 +259,11 @@ fn handle_message(
                     } else {
                         // the host (presumably) is adding a peer to a path we are in
 
-                        // double check if we are in the path
                         if let Some(path) = data.path {
-                            if let Ok(existing_path) = bedrock.get_path(&path.path) {
-                                if let Some(peers) = data.peers {
-                                    // the path exists
-                                    for peer in peers {
-                                        bedrock.foreign_new_peer(peer, source.node.clone());
-                                    }
+                            if let Some(peers) = data.peers {
+                                // the path exists
+                                for peer in peers {
+                                    let fr = bedrock.foreign_new_peer(peer, source.node.clone());
                                 }
                             }
                         }
@@ -285,11 +282,9 @@ fn handle_message(
                         }
                     } else {
                         // the host (presumably) is letting us know about a new row for a path we are in
-                        if let Some(path) = data.path {
-                            if let Some(rows) = data.rows {
-                                for row in rows {
-                                    bedrock.foreign_new_row(row, source.node.clone());
-                                }
+                        if let Some(rows) = data.rows {
+                            for row in rows {
+                                bedrock.foreign_new_row(row, source.node.clone());
                             }
                         }
                     }
@@ -363,7 +358,6 @@ fn handle_message(
                     target: _target,
                     data,
                 } => {
-                    // we are trying to
                     if source.node == bedrock.our.node {
                         if let Some(path) = data.path {
                             let str_path = path.path.clone();
@@ -403,7 +397,7 @@ fn handle_message(
                             }
                         }
                     } else {
-                        // the host
+                        // we are the host
                         if let Some(peers) = data.peers {
                             for peer in peers {
                                 bedrock.foreign_del_peer(peer, source.node.clone());
@@ -429,7 +423,6 @@ fn handle_message(
                             }
                         }
                     } else {
-                        // the host
                         if let Some(rows) = data.rows {
                             for row in rows {
                                 bedrock.foreign_del_row(
@@ -450,7 +443,14 @@ fn handle_message(
                 } => {
                     if source.node == bedrock.our.node {
                         // error
-                    } else { // we must be the host here, or else this is an error
+                    } else {
+                        // we must be the host here, or else this is an error
+                        // TODO: access control
+                        if let Some(peers) = data.peers {
+                            for peer in peers {
+                                bedrock.add_peer(&peer.path, peer.clone());
+                            }
+                        }
                     }
                 }
                 BedrockRequest::WantAddRow {
@@ -459,7 +459,14 @@ fn handle_message(
                 } => {
                     if source.node == bedrock.our.node {
                         // error
-                    } else { // we must be the host here, or else this is an error
+                    } else {
+                        // we must be the host here, or else this is an error
+                        // TODO: access control
+                        if let Some(rows) = data.rows {
+                            for row in rows {
+                                bedrock.add_row(row);
+                            }
+                        }
                     }
                 }
                 BedrockRequest::WantUpdPath {
@@ -468,7 +475,12 @@ fn handle_message(
                 } => {
                     if source.node == bedrock.our.node {
                         // error
-                    } else { // we must be the host here, or else this is an error
+                    } else {
+                        // we must be the host here, or else this is an error
+                        // TODO: access control
+                        if let Some(path) = data.path {
+                            bedrock.update_path(path);
+                        }
                     }
                 }
                 BedrockRequest::WantUpdPeer {
@@ -477,7 +489,14 @@ fn handle_message(
                 } => {
                     if source.node == bedrock.our.node {
                         // error
-                    } else { // we must be the host here, or else this is an error
+                    } else {
+                        // we must be the host here, or else this is an error
+                        // TODO: access control
+                        if let Some(peers) = data.peers {
+                            for peer in peers {
+                                bedrock.update_peer(peer);
+                            }
+                        }
                     }
                 }
                 BedrockRequest::WantUpdRow {
@@ -486,7 +505,14 @@ fn handle_message(
                 } => {
                     if source.node == bedrock.our.node {
                         // error
-                    } else { // we must be the host here, or else this is an error
+                    } else {
+                        // we must be the host here, or else this is an error
+                        // TODO: access control
+                        if let Some(peers) = data.peers {
+                            for peer in peers {
+                                bedrock.update_peer(peer);
+                            }
+                        }
                     }
                 }
                 BedrockRequest::WantDelPath {
@@ -495,7 +521,12 @@ fn handle_message(
                 } => {
                     if source.node == bedrock.our.node {
                         // error
-                    } else { // we must be the host here, or else this is an error
+                    } else {
+                        // we must be the host here, or else this is an error
+                        // TODO: access control
+                        if let Some(path) = data.path {
+                            bedrock.delete_path(&path.path);
+                        }
                     }
                 }
                 BedrockRequest::WantDelPeer {
@@ -504,13 +535,27 @@ fn handle_message(
                 } => {
                     if source.node == bedrock.our.node {
                         // error
-                    } else { // we must be the host here, or else this is an error
+                    } else {
+                        // we must be the host here, or else this is an error
+                        // TODO: access control
+                        if let Some(peers) = data.peers {
+                            for peer in peers {
+                                bedrock.delete_peer(&peer.id, &peer.path);
+                            }
+                        }
                     }
                 }
                 BedrockRequest::WantDelRow { target, data } => {
                     if source.node == bedrock.our.node {
                         // error
-                    } else { // we must be the host here, or else this is an error
+                    } else {
+                        // we must be the host here, or else this is an error
+                        // TODO: access control
+                        if let Some(rows) = data.rows {
+                            for row in rows {
+                                bedrock.delete_row(row.tbl_name(), row.id_string(), row.path);
+                            }
+                        }
                     }
                 }
             }
